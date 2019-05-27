@@ -1,0 +1,79 @@
+import win32com.client
+import os
+import zipfile
+import pandas as pd
+import numpy as np
+
+#loop through each well
+mainpath = 'C:\\Users\Shea Evans\\Desktop\\The six'
+welllist = os.listdir(mainpath)
+for well in welllist:
+    PJRfilelist = os.listdir(path+'\\'+well)
+    for PJRfile in PJRfilelist:
+        PJR = (path+'\\'+well+'\\'+PJRfile)
+        
+        #Extract .msg files
+        outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+        msgfiles = 'C:\\Users\\Shea Evans\\Desktop\\MSGExport'
+        listofmsg = os.listdir(PJR)
+        for msgfile in listofmsg:
+            msg = outlook.OpenSharedItem(PJR+'\\'+msgfile)
+            att = msg.Attachments
+            for i in att:
+                i.SaveAsFile(os.path.join(msgfiles, i.FileName))
+                
+#Find .zip files from the msg export
+zipfilelist = []
+for root,dirs,files in os.walk(msgfiles):
+    for file in files:
+       if file.endswith(".zip"):
+            #list of zip file names
+            zipfilelist.append(file)
+         
+#Extract .csv files from zip files
+zipfiles = 'C:\\Users\\Shea Evans\\Desktop\\ZIPExport'
+for zipfil in zipfilelist:
+    zip_ref = zipfile.ZipFile(msgfiles+'\\'+zipfil,'r')
+    zip_ref.extractall(zipfiles)
+    zip_ref.close()
+    
+#Find .csv files from .zip export
+csvfilelist = []
+for root,dirs,files in os.walk(zipfiles):
+    for file in files:
+       if file.endswith(".csv"):
+            #list of csv file names
+            csvfilelist.append(file)
+            
+path = zipfiles
+
+masterdf = pd.read_csv('C:\\Users\\Shea Evans\\Desktop\\MasterSheet.csv')
+
+#loop through each 1 sec frac data file
+
+for filename in csvfilelist:
+    
+    #grab API number... not really sure why its in the 7th row... possibly "bad" data
+    file_wellinfo = pd.read_csv(path+"\\"+filename,header=7)
+    API = file_wellinfo.columns[0]
+    
+    #grab stage number, assumes stage number is last text saved in file name
+    Stage = filename[-6:-4]
+    
+    #create data frame with 9th row as headers... not really sure why 9th works here, would think 14
+    file_data = pd.read_csv(path+"\\"+filename,header=9)
+    
+    #add column of APIs
+    file_data.insert(0,'API', API)
+    
+    #add column of stage nums
+    file_data.insert(1, 'Stage', Stage)
+    
+    #uncomment to check number of columns for each stage
+    print(filename + " " + str(len(file_data.columns)))
+    
+    #join each new file to FracData
+    masterdf = pd.concat([masterdf,file_data], axis=0,join='inner') 
+
+#Save as csv file
+masterdf.to_csv('C:\\Users\\Shea Evans\\Desktop\\masterdf2.csv')
